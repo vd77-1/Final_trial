@@ -7,6 +7,7 @@ import type {
 } from "@/data/types";
 import type { Backend } from "./backend";
 import { authStore, stores } from "./store";
+import { seedBooths } from "@/data/seed";
 
 const env = import.meta.env as Record<string, string | undefined>;
 
@@ -145,6 +146,38 @@ export function createFirebaseBackend(): Backend {
         })
         .catch((e) => stores.booths.fail(asMessage(e)));
     },
+    async seedMissingBooths() {
+      const c = await ctx();
+      const fbUser = c.auth.currentUser;
+      if (!fbUser) throw new Error("Please log in as admin first.");
+
+      const profile = await loadProfile(c, fbUser.uid);
+      if (!profile || profile.role !== "admin") {
+        throw new Error("Admin access required.");
+      }
+
+      let added = 0;
+      let skipped = 0;
+
+      for (const booth of seedBooths()) {
+        const ref = c.fs.doc(c.db, COL.booths, booth.id);
+        const existing = await c.fs.getDoc(ref);
+
+        if (existing.exists()) {
+          skipped++;
+          continue;
+        }
+
+        await c.fs.setDoc(ref, {
+          ...booth,
+          dataType: "prototype",
+          sensorDataSource: "simulated",
+        });
+        added++;
+      }
+
+      return { added, skipped };
+    },
     async put(name, docData) {
       const c = await ctx();
       await c.fs.setDoc(c.fs.doc(c.db, COL[name], docData.id), docData);
@@ -217,3 +250,4 @@ export function createFirebaseBackend(): Backend {
     },
   };
 }
+

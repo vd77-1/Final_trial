@@ -18,6 +18,7 @@ export interface Backend {
   /** Begin syncing collections into the stores. Called once, client side. */
   start(): void;
   put<K extends CollectionName>(name: K, doc: CollectionMap[K]): Promise<void>;
+  seedMissingBooths?(): Promise<{ added: number; skipped: number }>;
   remove(name: CollectionName, id: string): Promise<void>;
   /** Public lookup of a single complaint by its reference number. */
   getComplaint(id: string): Promise<Complaint | null>;

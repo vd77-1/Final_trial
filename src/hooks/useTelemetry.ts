@@ -138,7 +138,12 @@ export function useFleetAnalytics() {
       getBackend()
         .getReadings(key.split("|"), Date.now() - 7 * DAY)
         .then((r) => !cancelled && (setReadings(r), setError(null)))
-        .catch(() => !cancelled && setError("Couldn't load sensor history."));
+.catch(() => {
+  if (!cancelled) {
+    setReadings((current) => current ?? {});
+    setError("Couldn't load sensor history.");
+  }
+});
     load();
     const t = setInterval(load, REFRESH_MS * 5);
     return () => {

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { statusMeta, type BoothStatus } from "@/data/types";
 import { useFleetAnalytics } from "@/hooks/useTelemetry";
 import { selectClass, timeAgo } from "@/lib/boothUtils";
+import { getBackend } from "@/services/backend";
 
 export const Route = createFileRoute("/admin/booths")({
   head: () => ({
@@ -28,6 +29,18 @@ function BoothsPage() {
   const [status, setStatus] = useState<BoothStatus | "all">("all");
   const [category, setCategory] = useState("all");
   const [risk, setRisk] = useState("all");
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState("");
+  const uploadMissing = async () => {
+    setUploading(true); setUploadMessage("");
+    try {
+      const result = await getBackend().seedMissingBooths?.();
+      if (!result) throw new Error("Upload is available only in Firebase mode.");
+      setUploadMessage(`Upload complete: ${result.added} added, ${result.skipped} already existed.`);
+    } catch (e) {
+      setUploadMessage(e instanceof Error ? e.message : "Upload failed.");
+    } finally { setUploading(false); }
+  };
 
   const filtered = useMemo(
     () =>
@@ -53,7 +66,13 @@ function BoothsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl p-4 lg:p-6">
-      <h1 className="font-display text-2xl font-bold text-primary">Booths</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-2xl font-bold text-primary">Booths</h1>
+        <button type="button" onClick={uploadMissing} disabled={uploading} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+          {uploading ? "Uploading..." : "Upload Missing Booths"}
+        </button>
+      </div>
+      {uploadMessage && <p role="status" className="mt-2 text-sm">{uploadMessage}</p>}
       <div className="mt-4 grid gap-3 md:grid-cols-[2fr_1fr_1fr_1fr]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
