@@ -1,0 +1,12 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Complaint photos: anyone may upload one small image per complaint folder; no overwrite or delete.
+    match /complaint_photos/{complaintId}/{file} {
+      allow read: if true;
+      allow create: if request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function hasProfile() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function isAdmin() { return hasProfile() && profile().role == 'admin'; }
+    function isMts() { return hasProfile() && profile().role == 'mts'; }
+    function isStaff() { return isAdmin() || isMts(); }
+    function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // Public: booth directory (status, location, filter info). Writes: admin; MTS may only
+    // update workflow fields when closing a task.
+    match /water_booths/{id} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isMts() && onlyChanges(['status', 'lastMaintenanceAt', 'lastVerifiedAt']));
+    }
+
+    // Public read for the booth page. Clients cannot write: the ESP32 gateway / Cloud Function
+    // writes with the Admin SDK (which bypasses rules).
+    match /sensor_readings/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /device_status/{id} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    // Anyone can file a complaint and look one up by its reference (the document ID).
+    // Only staff can list them.
+    match /complaints/{id} {
+      allow get: if true;
+      allow list: if isStaff();
+      allow create: if request.resource.data.keys().hasOnly(['id','boothId','category','description','photoUrl','status','createdAt','updatedAt','timeline'])
+        && request.resource.data.id == id
+        && request.resource.data.status == 'Submitted'
+        && request.resource.data.category in ['No Water','Poor Flow','Suspected Water-Quality Issue','Damaged Equipment','Leakage','Other']
+        && request.resource.data.description is string
+        && request.resource.data.description.size() >= 10 && request.resource.data.description.size() <= 1000
+        && request.resource.data.timeline.size() == 1
+        && exists(/databases/$(database)/documents/water_booths/$(request.resource.data.boothId));
+      allow update: if isAdmin() || (isMts() && onlyChanges(['status', 'updatedAt', 'timeline']));
+      allow delete: if false;
+    }
+
+    match /maintenance_tasks/{id} {
+      allow read: if isAdmin() || (isMts() && resource.data.assignedTo == request.auth.uid);
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isMts() && resource.data.assignedTo == request.auth.uid
+        && onlyChanges(['status', 'acceptedAt', 'startedAt', 'resolvedAt', 'notes']));
+      allow delete: if false;
+    }
+
+    match /maintenance_history/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if false;
+    }
+
+    // users/{uid}: created by an admin in the console or admin tooling. A user can read their own profile.
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if isStaff();
+      allow write: if isAdmin();
+    }
+  }
+}

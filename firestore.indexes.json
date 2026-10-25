@@ -1,0 +1,9 @@
+{
+  "indexes": [
+    { "collectionGroup": "sensor_readings", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "boothId", "order": "ASCENDING" }, { "fieldPath": "ts", "order": "ASCENDING" } ] },
+    { "collectionGroup": "sensor_readings", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "boothId", "order": "ASCENDING" }, { "fieldPath": "ts", "order": "DESCENDING" } ] }
+  ],
+  "fieldOverrides": []
+}
